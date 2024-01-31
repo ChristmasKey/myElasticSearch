@@ -120,3 +120,55 @@ ES是面向文档存储的，可以是数据库中的一条商品数据，一个
 #### ES与MySQL的概念对比
 
 ![ES与MySQL的概念对比](./images/ES与MySQL的概念对比.png)
+
+MySQL：擅长事物类型操作，可以确保数据的安全和一致性
+
+ES：擅长海量数据的搜索、分析、计算
+
+两者可以应用在同一架构中：
+
+![ES和MySQL架构](./images/ES和MySQL架构.png)
+
+
+
+### 安装ES
+
+#### 部署单点ES
+
+1.创建网络
+
+因为我们还需要部署Kibana容器，因此需要让ES和Kibana容器互联。
+
+这里先创建一个网络
+
+```sh
+docker network create es-net
+```
+
+
+
+2.加载镜像
+
+下载ES镜像的tar包
+
+
+
+将其上传到虚拟机中，然后运行命令加载即可
+
+```sh
+docker load -i es.tar
+```
+
+同理还有Kibana的tar包也需要这样做
+
+
+
+3.运行
+
+
+
+#### 部署Kibana
+
+#### 安装IK分词器
+
+#### 部署ES集群
