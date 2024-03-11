@@ -133,42 +133,109 @@ ES：擅长海量数据的搜索、分析、计算
 
 ### 安装ES
 
-#### 部署单点ES
+安装**ElasticSearch**的同时，还需要安装**kibana**组件，因为kibana组件中提供了一个**devtools**工具，<span style="color:red;">可以帮助我们非常方便地编写ElasticSearch中的DSL语句</span>。
 
-1.创建网络
+#### 1、部署单点ES
 
-因为我们还需要部署Kibana容器，因此需要让ES和Kibana容器互联。
-
-这里先创建一个网络
+首先创建网络，因为我们还需要部署kibana容器，为了让ES和kibana容器互联，所以需要创建一个网络：
 
 ```sh
-docker network create es-net
+# 这里先创建一个网络
+$ docker network create es-net
+```
+
+---
+
+然后从官方文档中获取ElasticSearch的docker镜像拉取命令：https://www.elastic.co/guide/en/elasticsearch/reference/current/docker.html
+
+![ES官网-docker镜像安装手册](./images/ES官网-docker镜像安装手册.png)
+
+这里我们选择 `7.12.1` 版本的 ES，获取镜像拉取命令：
+
+![获取ES的docker镜像拉取命令](./images/获取ES的docker镜像拉取命令.png)
+
+kibana的镜像命令获取方式与ES相同！！
+
+---
+
+最后运行docker命令，部署单点es：
+
+```sh
+$ docker run -d \
+$     --name es \
+$     -e "ES_JAVA_OPTS=-Xms512m -Xmx512m" \
+$     -e "discovery.type=single-node" \
+$     -v es-data:/usr/share/elasticsearch/data \
+$     -v es-plugins:/usr/share/elasticsearch/plugins \
+$     --privileged \
+$     --network es-net \
+$     -p 9200:9200 \
+$     -p 9300:9300 \
+$ docker.elastic.co/elasticsearch/elasticsearch:7.12.1
+```
+
+命令说明：
+
+- `-e "cluster.name=es-docker-cluster"`：设置集群名称
+- `-e "http.host=0.0.0.0"`：监听的地址，可以外网访问
+- `-e "ES_JAVA_OPTS=-Xms512m -Xmx512m"`：内存大小
+- `-e "discovery.type=single-node"`：非集群模式
+- `-v es-data:/usr/share/elasticsearch/data`：挂载逻辑卷，绑定 es 的数据目录
+- `-v es-logs:/usr/share/elasticsearch/logs`：挂载逻辑卷，绑定 es 的日志目录
+- `-v es-plugins:/usr/share/elasticsearch/plugins`：挂载逻辑卷，绑定 es 的插件目录
+- `--privileged`：授予逻辑卷访问权
+- `--network es-net`：加入一个名为 es-net 的网络中
+- `-p 9200:9200`：端口映射配置
+
+
+
+在浏览器中输入 http://YourIP:9200 即可看到 elasticsearch 的响应结果：
+
+![ES镜像的安装验证](./images/ES镜像的安装验证.png)
+
+
+
+#### 2、部署kibana
+
+kibana可以给我们提供一个elasticsearch的可视化界面
+
+运行docker命令，部署kibana：
+
+```sh
+$ docker run -d \
+$     --name kibana \
+$     -e ELASTICSEARCH_HOSTS=http://es:9200 \
+$     --network es-net \
+$     -p 5601:5601 \
+$ kibana:7.12.1
+```
+
+命令说明：
+
+- `--net-work es-net`：加入一个名为 es-net 的网络中，与 elasticsearch 在同一个网络中
+- `-e ELASTICSEARCH_HOSTS=http://es:9200`：设置elasticsearch的地址，因为kibana已经与elasticsearch在一个网络，因此可以直接用容器名访问elasticsearch
+- `-p 5601:5601`：端口映射配置
+
+kibana启动一般比较慢，需要多等待一会，可以通过命令查看容器的运行日志：
+
+```sh
+$ docker logs -f kibana
 ```
 
 
 
-2.加载镜像
-
-下载ES镜像的tar包
 
 
-
-将其上传到虚拟机中，然后运行命令加载即可
-
-```sh
-docker load -i es.tar
-```
-
-同理还有Kibana的tar包也需要这样做
+#### 3、安装IK分词器
 
 
 
-3.运行
+
+
+#### 4、部署ES集群
 
 
 
-#### 部署Kibana
 
-#### 安装IK分词器
 
-#### 部署ES集群
+123
