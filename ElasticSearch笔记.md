@@ -222,19 +222,152 @@ kibana启动一般比较慢，需要多等待一会，可以通过命令查看�
 $ docker logs -f kibana
 ```
 
+当看到如下日志输出时，就说明kibana启动成功了：
 
+![kibana启动日志](./images/kibana启动日志.png)
+
+在浏览器中输入 http://YourIP:5601 访问kibana
+
+![kibana界面](./images/kibana界面.png)
+
+接下来试用一下kibana的devtools，来获取es的信息
+
+![kibana中的devtools](./images/kibana中的devtools.png)
+
+模拟一个简单的请求
+
+![kibana中用devtools模拟请求](./images/kibana中用devtools模拟请求.png)
 
 
 
 #### 3、安装IK分词器
 
+es在创建倒排索引时需要对文档分词；在搜索时，需要对用户输入内容分词。但默认的分词规则对中文处理并不友好。
+
+我们在kibana的devtools中测试：
+
+![es标准分词器分词结果](./images/es标准分词器分词结果.png)
+
+> 语法说明：
+>
+> - POST：请求方式
+> - /_analyze：请求路径，这里省略了 http://YourIP:9200，有kibana帮我们补充
+> - 请求参数，Json风格：
+>     - analyzer：分词器类型，这里是默认的standard分词器
+>     - text：要分词的内容
+
+可以看到，es的标准分词规则对中文是逐字拆分的，这显然不符合期望。
 
 
 
+一般处理中文分词，会使用IK分词器：[官方github仓库](https://github.com/infinilabs/analysis-ik)
 
-#### 4、部署ES集群
+安装步骤如下：
+
+**在线安装ik插件**
+
+```sh
+# 进入容器内部
+$ docker exec -it elasticsearch /bin/bash
+
+# 在线下载并安装
+$ ./bin/elasticsearch-plugin install https://github.com/infinilabs/analysis-ik/releases/download/v7.12.1/elasticsearch-analysis-ik-7.12.1.zip
+
+# 退出
+$ exit
+# 重启容器
+$ docker restart elasticsearch
+```
 
 
+
+**离线安装ik插件**
+
+安装插件需要知道elasticsearch的plugins目录位置，而我们用了数据卷挂载，因此需要查看elasticsearch的数据卷目录，通过下面命令查看：
+
+```sh
+$ docker volume inspect es-plugins
+```
+
+显示结果如下：
+
+![查看es的plugins目录位置](./images/查看es的plugins目录位置.png)
+
+说明plugins目录被挂载到了 `/var/lib/docker/volumes/es-plugins/_data` 这个目录中。
+
+
+
+下载分词器压缩包并解压，重命名为ik：
+
+![下载并解压ik分词器](./images/下载并解压ik分词器.png)
+
+并将ik目录上传到es容器的插件数据卷`/var/lib/docker/volumes/es-plugins/_data`中，随后重启es容器即可。
+
+```sh
+$ docker restart es
+$ docker logs -f es
+```
+
+可以看到es加载插件的日志输出：
+
+![es加载ik分词器插件日志输出](./images/es加载ik分词器插件日志输出.png)
+
+
+
+再次回到kibana界面上的控制台，尝试一下ik分词器的中文分词效果
+
+==IK分词器包含两种模式：==
+
+1. `ik_smart`：智能切分，粗粒度
+2. `ik_max_word`：最细切分，细粒度
+
+![测试ik分词器的中文分词效果](./images/测试ik分词器的中文分词效果.png)
+
+
+
+**ik分词器拓展和停用词典**
+
+ik分词器能够进行中文分词的底层原理就是：
+
+​    ik分词器中存在着中文词典，在对中文进行分词的时候，ik分词器会根据字典对内容进行逐一比对。（其他中文分词器的原理也类似）
+
+但是一个词典无论它的词汇量再怎么丰富，也始终是有限的。
+
+而且随着时代的进步和发展，也会出现许多未被收录的新型词汇，对于使用这些词汇的内容，无法进行准确的分词。
+
+<span style="color:red;">此时就需要我们去对分词器中的词典进行拓展，同时也可以停用掉一些无意义的或敏感的词汇，来减少分词时占用的内存。</span>
+
+
+
+要拓展ik分词器的词库，只需要修改一个ik分词器目录中的config目录下的`IkAnalyzer.cfg.xml`文件
+
+（在其中添加指定的字典文件名称，并在同级目录下创建字典文件即可）
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE properties SYSTEM "http://java.sun.com/dtd/properties.dtd">
+<properties>
+	<comment>IK Analyzer 扩展配置</comment>
+	<!--用户可以在这里配置自己的扩展字典 -->
+	<entry key="ext_dict">ext.dic</entry>
+	 <!--用户可以在这里配置自己的扩展停止词字典-->
+	<entry key="ext_stopwords">stopword.dic</entry>
+	<!--用户可以在这里配置远程扩展字典 -->
+	<!-- <entry key="remote_ext_dict">words_location</entry> -->
+	<!--用户可以在这里配置远程扩展停止词字典-->
+	<!-- <entry key="remote_ext_stopwords">words_location</entry> -->
+</properties>
+```
+
+随后在相应的字典文件内容中添加词语，即可完成词典的拓展或停用。
+
+比如在 ext.dic 中添加词汇：白嫖、奥利给、泰酷辣、人艰不拆
+
+在 stopword.dic 中添加词汇：的、了、嗯、毒品、嘤
+
+重启es后，再尝试一下分词，可以看到结果如下：
+
+![拓展词典后的分词结果](./images/拓展词典后的分词结果.png)
 
 
 
