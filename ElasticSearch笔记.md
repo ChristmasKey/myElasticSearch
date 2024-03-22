@@ -371,4 +371,213 @@ ik分词器能够进行中文分词的底层原理就是：
 
 
 
-123
+
+
+## 索引库操作
+
+### mapping映射属性
+
+mapping是对索引库中文档的约束，**常见**的mapping属性包括：
+
+- type：字段数据类型，常见的简单类型有：
+    - 字符串：text，可分词的文本；keyword，精确值（例如品牌、国家、IP地址）
+    - 数值：long、integer、short、byte、double、float
+    - 布尔：boolean
+    - 日期：date
+    - 对象：object
+- index：是否创建倒排索引，默认为true
+- analyser：使用哪种分词器
+- properties：该字段的子字段
+
+
+
+### 创建索引库
+
+es中通过Restful请求操作索引库、文档。请求内容用DSL语句来表示。
+
+创建索引库和mapping的DSL语法如下：
+
+```DSL
+PUT /索引库名称
+{
+    "mappings": {
+        "properties": {
+            "字段名1": {
+                "type": "text",
+                "analyzer": "ik_smart"
+            },
+            "字段名2": {
+            	"type": "keyword",
+            	"index": "false"
+            },
+            "字段名3": {
+            	"properties": {
+            		"子字段": {
+                        "type": "keyword"
+                    }
+            	}
+            },
+            // ...略
+        }
+    }
+}
+```
+
+实操案例：
+
+![创建索引库](./images/创建索引库.png)
+
+
+
+### 查看、删除索引库
+
+查看索引库语法：
+
+```DSL
+GET /索引库名称
+```
+
+删除索引库语法：
+
+```DSL
+DELETE /索引库名称
+```
+
+
+
+示例：
+
+```DSL
+GET /stone
+DELETE /stone
+```
+
+
+
+### 修改索引库
+
+<span style="color:red;">在ES中索引库是不允许修改的</span>，因为索引库创建完以后，es会基于其mapping去创建倒排索引。
+
+如果索引库中字段被修改了，就会导致原有的整个倒排索引彻底失效。
+
+索引库和mapping一旦创建无法修改，但是可以添加新的字段，语法如下：
+
+```DSL
+PUT /索引库名称/_mapping
+{
+	"properties": {
+		"新字段名": {
+			"type": "integer"
+		}
+	}
+}
+```
+
+实操案例：
+
+![修改索引库添加字段](./images/修改索引库添加字段.png)
+
+
+
+## 文档操作
+
+### 新增文档
+
+新增文档的DSL语法如下：
+
+![新增文档的DSL语法](./images/新增文档的DSL语法.png)
+
+
+
+实操案例：
+
+![插入文档](./images/插入文档.png)
+
+
+
+### 查询文档
+
+语法：
+
+```DSL
+GET /索引库名称/_doc/文档id
+```
+
+
+
+### 删除文档
+
+语法：
+
+```DSL
+DELETE /索引库名称/_doc/文档id
+```
+
+
+
+示例：
+
+```DSL
+GET /stone/_doc/1
+DELETE /stone/_doc/1
+```
+
+
+
+### 修改文档
+
+方式一：全量修改，会删除旧文档，添加新文档
+
+![修改文档语法-方式一](./images/修改文档语法-方式一.png)
+
+方式二：增量修改，修改指定字段
+
+![修改文档语法-方式二.png](./images/修改文档语法-方式二.png)
+
+实操案例——全量修改文档
+
+![全量修改文档](./images/全量修改文档.png)
+
+实操案例——全量修改不存在的文档
+
+![全量修改不存在的文档](./images/全量修改不存在的文档.png)
+
+实操案例——增量修改文档
+
+![增量修改文档](./images/增量修改文档.png)
+
+
+
+## RestClient操作索引库
+
+什么是RestClient？
+
+ES官方提供了各种不同语言的客户端，用来操作ES。
+
+这些客户端的本质就是组装DSL语句，通过http请求发送给ES。
+
+官方文档地址：https://www.elastic.co/guide/en/elasticsearch/client/index.html
+
+==案例：利用JavaRestClient实现创建、删除索引库，判断索引库是否存在==
+
+根据酒店数据创建索引库，索引库名为hotel，mapping属性根据数据库结构定义。
+
+基本步骤如下：
+
+1. 打开Demo，分析数据结构，定义mapping属性
+2. 初始化JavaRestClient
+3. 利用JavaRestClient创建索引库
+4. 利用JavaRestClient删除索引库
+5. 利用JavaRestClient判断索引库是否存在
+
+
+
+### 创建索引库
+
+
+
+### 删除索引库
+
+
+
+### 判断索引库是否存在
