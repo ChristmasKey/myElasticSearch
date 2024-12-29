@@ -29,7 +29,7 @@
 
 ES的底层是基于 <span style="color:red;">**Lucene**</span> 实现的。
 
-> Lucene是一个Java语言的搜索引擎类库，是Apache公司的顶级项目，由*DougCutting*与1999年研发。
+> Lucene是一个Java语言的搜索引擎类库，是Apache公司的顶级项目，由*DougCutting*于1999年研发。
 >
 > 官网地址：https://lucene.apache.org/
 >
@@ -207,7 +207,7 @@ $     --name kibana \
 $     -e ELASTICSEARCH_HOSTS=http://es:9200 \
 $     --network es-net \
 $     -p 5601:5601 \
-$ kibana:7.12.1
+$ docker.elastic.co/kibana/kibana:7.12.1
 ```
 
 命令说明：
@@ -323,7 +323,7 @@ $ docker logs -f es
 
 ![测试ik分词器的中文分词效果](./images/测试ik分词器的中文分词效果.png)
 
-
+https://www.bilibili.com/video/BV1LQ4y127n4?spm_id_from=333.788.player.switch&vd_source=71b23ebd2cd9db8c137e17cdd381c618&p=84
 
 **ik分词器拓展和停用词典**
 
