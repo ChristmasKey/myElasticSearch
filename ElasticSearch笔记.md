@@ -323,7 +323,7 @@ $ docker logs -f es
 
 ![测试ik分词器的中文分词效果](./images/测试ik分词器的中文分词效果.png)
 
-https://www.bilibili.com/video/BV1LQ4y127n4?spm_id_from=333.788.player.switch&vd_source=71b23ebd2cd9db8c137e17cdd381c618&p=84
+
 
 **ik分词器拓展和停用词典**
 
@@ -386,7 +386,7 @@ mapping是对索引库中文档的约束，**常见**的mapping属性包括：
     - 日期：date
     - 对象：object
 - index：是否创建倒排索引，默认为true
-- analyser：使用哪种分词器
+- analyzer：使用哪种分词器
 - properties：该字段的子字段
 
 
@@ -460,7 +460,7 @@ DELETE /stone
 
 如果索引库中字段被修改了，就会导致原有的整个倒排索引彻底失效。
 
-索引库和mapping一旦创建无法修改，但是可以添加新的字段，语法如下：
+索引库和mapping一旦创建无法修改，**但是可以添加新的字段**，语法如下：
 
 ```DSL
 PUT /索引库名称/_mapping
@@ -538,7 +538,7 @@ DELETE /stone/_doc/1
 
 ![全量修改文档](./images/全量修改文档.png)
 
-实操案例——全量修改不存在的文档
+实操案例——新增不存在的文档
 
 ![全量修改不存在的文档](./images/全量修改不存在的文档.png)
 
@@ -564,20 +564,299 @@ ES官方提供了各种不同语言的客户端，用来操作ES。
 
 基本步骤如下：
 
-1. 打开Demo，分析数据结构，定义mapping属性
-2. 初始化JavaRestClient
-3. 利用JavaRestClient创建索引库
-4. 利用JavaRestClient删除索引库
-5. 利用JavaRestClient判断索引库是否存在
+（**前置操作**：创建数据库，并运行tb_hotel.sql，创建对应的库表，随后导入hotel-demo项目）
 
 
 
 ### 创建索引库
 
+#### 1.分析数据结构
+
+打开hotel-demo，分析数据结构，定义mapping属性
+
+在创建mapping时要考虑的问题：字段名、数据类型、是否参与搜索、是否分词、如果分词，分词器是什么？
+
+根据以上思路，针对数据库表tb_hotel进行分析：
+
+![tb_hotel表结构](./images/tb_hotel表结构.png)
+
+定义mapping的语法如下：
+
+```json
+# 创建酒店的mapping
+PUT /hotel
+{
+    "mappings": {
+        "properties": {
+            "id": {
+                # id属性比较特殊，一般采用 keyword 类型
+                "type": "keyword",
+                # id属性需要参与搜索
+                "index": "true"
+            },
+            "name": {
+                "type": "text",
+                "index": "true",
+                "analyzer": "ik_max_word"
+            },
+            "address": {
+                # address 不需要分词，不参与搜索
+                "type": "keyword",
+                "index": "false"
+            },
+            "price": {
+                "type": "integer",
+                "index": "true"
+            },
+            "score": {
+                "type": "integer",
+                "index": "true"
+            },
+            "brand": {
+                # brand 不需要分词，参与搜索
+                "type": "keyword",
+                "index": "true"
+            },
+            "city": {
+                # city 不需要分词，参与搜索
+                "type": "keyword",
+                "index": "true"
+            },
+            "starName": {
+                # starName 采用驼峰写法，不需要分词，参与搜索
+                "type": "keyword",
+                "index": "true"
+            },
+            "business": {
+                # business 不需要分词，参与搜索
+                "type": "keyword",
+                "index": "true"
+            },
+            "location": {
+                # 经度 和 纬度 共同组成一个新属性 地理坐标，类型为 geo_point
+                "type": "geo_point",
+            },
+            "pic": {
+                # pic 既不分词，也不参与搜索
+                "type": "keyword",
+                "index": "false",
+            }
+        }
+    }
+}
+```
+
+<span style="color:red;">ES支持两种地理坐标数据类型：</span>
+
+- geo_point：由纬度（latitude）和经度（longitude）确定的一个点。例如："32.8752345, 120.2981576"；
+- geo_shape：由多个geo_point组成的复杂几何图形。例如一条直线，"LINESTRING (-77.03653  38.897676, -77.009051  38.889939)"
 
 
-### 删除索引库
+
+在ES中，单个字段的搜索效率是要比多个字段的搜索效率高的，因此我们可以使用 ==字段拷贝属性`copy_to`== 将搜索条件涉及的多个字段拷贝到一个字段中。
+
+<span style="color:red;">字段拷贝可以使用copy_to属性将当前字段拷贝到指定字段</span>
+
+```json
+# 示例
+"all": {
+    "type": "text",
+    "analyzer": "ik_max_word"
+},
+"brand": {
+    "type": "keyword",
+    "copy_to": "all"
+}
+```
+
+对mapping属性进行改造后如下：
+
+```json
+# 创建酒店的mapping
+PUT /hotel
+{
+    "mappings": {
+        "properties": {
+            "id": {
+                # id属性比较特殊，一般采用 keyword 类型
+                "type": "keyword",
+                # id属性需要参与搜索
+                "index": "true"
+            },
+            "name": {
+                "type": "text",
+                "index": "true",
+                "analyzer": "ik_max_word",
+                # 将该属性拷贝到 all 属性中，参与条件搜索
+                "copy_to": "all"
+            },
+            "address": {
+                # address 不需要分词，不参与搜索
+                "type": "keyword",
+                "index": "false"
+            },
+            "price": {
+                "type": "integer",
+                "index": "true"
+            },
+            "score": {
+                "type": "integer",
+                "index": "true"
+            },
+            "brand": {
+                # brand 不需要分词，参与搜索
+                "type": "keyword",
+                "index": "true"
+            },
+            "city": {
+                # city 不需要分词，参与搜索
+                "type": "keyword",
+                "index": "true"
+            },
+            "starName": {
+                # starName 采用驼峰写法，不需要分词，参与搜索
+                "type": "keyword",
+                "index": "true"
+            },
+            "business": {
+                # business 不需要分词，参与搜索
+                "type": "keyword",
+                "index": "true",
+                # 将该属性拷贝到 all 属性中，参与条件搜索
+                "copy_to": "all"
+            },
+            "location": {
+                # 经度 和 纬度 共同组成一个新属性 地理坐标，类型为 geo_point
+                "type": "geo_point",
+            },
+            "pic": {
+                # pic 既不分词，也不参与搜索
+                "type": "keyword",
+                "index": "false",
+            },
+            
+            
+            # 定义一个属性，用来拷贝其他属性，并作为条件搜索字段
+            "all": {
+                "type": "text",
+                "analyzer": "ik_max_word"
+            }
+        }
+    }
+}
+```
 
 
 
-### 判断索引库是否存在
+#### 2.初始化JavaRestClient
+
+引入es的RestHighLevelClient依赖
+
+```xml
+<!--ElasticSearch客户端-->
+<dependency>
+    <groupId>org.elasticsearch.client</groupId>
+    <artifactId>elasticsearch-rest-high-level-client</artifactId>
+</dependency>
+```
+
+初始化RestHighLevelClient
+
+（我们在测试类`HotelIndexTest`中编写初始化代码）
+
+```java
+package com.stone.hotel;
+
+import org.apache.http.HttpHost;
+import org.elasticsearch.client.RestClient;
+import org.elasticsearch.client.RestHighLevelClient;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+
+import java.io.IOException;
+
+public class HotelIndexTest {
+
+    private RestHighLevelClient client;
+
+    @BeforeEach
+    void setUp() {
+        // 创建客户端实例
+        this.client = new RestHighLevelClient(RestClient.builder(
+                // 集群写法：
+                // HttpHost.create("http://192.168.230.128:9200"),
+                // HttpHost.create("http://192.168.230.128:9200"),
+                // HttpHost.create("http://192.168.230.128:9200")
+
+                HttpHost.create("http://192.168.230.128:9200") // 单点写法
+        ));
+    }
+
+    @AfterEach
+    void tearDown() throws IOException {
+        // 销毁客户端实例
+        this.client.close();
+    }
+
+    @Test
+    void testInit() {
+        // 测试客户端是否成功初始化
+        System.out.println(client);
+    }
+}
+```
+
+testInit方法执行成功的结果如下：
+
+![初始化RestHighLevelClient方法执行结果](./images/初始化RestHighLevelClient方法执行结果.png)
+
+<span style="color:red;">BeforeEach和AfterEach注解的作用</span>
+
+`@BeforeEach`和`@AfterEach`是java测试框架**JUnit**中的两个注解；
+
+`@BeforeEach`
+
+- 作用：在每个测试方法执行之前都会被执行一次；
+- 用途：通常用于设置测试环境、初始化测试数据、创建测试对象等操作。例如，可以在`@BeforeEach`方法中连接数据库、加载配置文件、创建模拟对象等；
+- 好处：确保每个测试方法都在相同的初始状态下执行，提高测试的可重复性和可靠性。避免了在每个测试方法中重复编写相同的初始化代码，提高了测试代码的可读性和可维护性；
+
+`@AfterEach`
+
+- 作用：在每个测试方法执行之后都会被执行一次；
+- 用途：通常用于清理测试环境、释放资源、验证测试结果等操作。例如，可以在`@AfterEach`方法中关闭数据库连接、删除临时文件、验证测试方法的输出是否符合预期等；
+- 好处：确保测试方法执行后，测试环境被清理干净，避免对后续测试产生影响。同时，也可以及时发现测试方法中的错误，提高测试的效率和可靠性；
+
+**注意事项：**
+
+①执行顺序
+
+`@BeforeEach`和`@AfterEach`方法的执行顺序是按照测试方法的定义顺序执行的。
+
+也就是说，如果有多个测试方法，`@BeforeEach`方法会在每个测试方法执行之前依次执行，`@AfterEach`方法会在每个测试方法执行之后依次执行。
+
+②异常处理
+
+如果`@BeforeEach`方法中抛出了异常，那么当前测试方法将不会被执行；
+
+如果`@AfterEach`方法中抛出了异常，那么异常会被记录下来，但不会影响其他测试方法的执行。
+
+③资源管理
+
+在使用`@BeforeEach`和`@AfterEach`方法进行资源管理时，要确保资源的正确释放，避免资源泄露。
+
+例如：在连接数据库时，要确保在`@AfterEach`方法中正确关闭数据库连接。
+
+
+
+#### 3.利用JavaRestClient创建索引库
+
+https://www.bilibili.com/video/BV1LQ4y127n4?spm_id_from=333.788.player.switch&vd_source=71b23ebd2cd9db8c137e17cdd381c618&p=93
+
+4.利用JavaRestClient删除索引库
+
+
+
+5.利用JavaRestClient判断索引库是否存在
+
+
